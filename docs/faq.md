@@ -19,6 +19,7 @@ SWE-bench offers five main datasets:
 ### How does the evaluation work?
 
 The evaluation process:
+
 1. Sets up a Docker environment for a repository
 2. Applies the model's generated patch
 3. Runs the repository's test suite
@@ -27,6 +28,7 @@ The evaluation process:
 ### What metrics are reported?
 
 Key metrics include:
+
 - **Total instances**: Number of instances in the dataset
 - **Instances submitted**: Number of instances the model attempted
 - **Instances completed**: Number of instances that completed the evaluation process
