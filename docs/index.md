@@ -1,4 +1,4 @@
-# Getting Started
+# SWE-bench
 
 <div style="text-align:center">
     <img src="assets/figures/swellama_banner_nobg.svg" alt="Kawi the SWE-Llama" style="max-height: 10em"/>
