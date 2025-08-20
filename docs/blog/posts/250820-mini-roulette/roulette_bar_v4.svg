@@ -183,7 +183,7 @@
   </g>
   <text class="st10" transform="translate(179.9 153.7)"><tspan x="0" y="0">67.2%</tspan></text>
   <text class="st9" transform="translate(467.9 169.7)"><tspan x="0" y="0">64.8%</tspan></text>
-  <text class="st9" transform="translate(324.7 169.4)"><tspan x="0" y="0">65.2%</tspan></text>
+  <text class="st9" transform="translate(324.7 169.4)"><tspan x="0" y="0">65.0%</tspan></text>
   <text class="st11" transform="translate(323.2 201.2)"><tspan x="0" y="0">GPT-5</tspan></text>
   <text class="st11" transform="translate(453.7 201)"><tspan x="0" y="0">Sonnet 4</tspan></text>
   <text class="st30" transform="translate(112.8 469.1) rotate(-90)"><tspan class="st5" x="0" y="0">SWE-bench Verified </tspan><tspan class="st27" x="215.2" y="0">→</tspan></text>
