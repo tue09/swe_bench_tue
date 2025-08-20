@@ -30,7 +30,7 @@ We use the same setup as in our [previous blog post](250808-gpt5.md), i.e., runn
 Now all we change is that instead of `model.query(history)`, we do `random.choice([model1, model2]).query(history)`,
 that's it! 
 
-Other than configuring the models, the [prompts also stay the same](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/config/extra/swebench.yaml).
+Other than configuring the models, the [prompts also stay the same](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/config/extra/swebench_roulette.yaml).
 
 
 
@@ -103,6 +103,16 @@ A word about statistical power:
 
 ## Running it yourself
 
-To make this a bit nicer to use, we made a small wrapper model class [here](https://github.com/SWE-agent/mini-swe-agent/blob/_/src/minisweagent/models/roulette.py)).
+To make this a bit nicer to use, we made a small wrapper model class [here](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/models/extra/roulette.py)).
 
-We will update [mini-swe-agent](https://mini-swe-agent.com) to include this model class on the main branch shortly.
+Currently, you can use it with SWE-bench evaluation simply by switching to the [`swebench_roulette` config](https://github.com/SWE-agent/mini-swe-agent/blob/main/src/minisweagent/config/extra/swebench_roulette.yaml):
+
+```bash
+mini-extra swebench \
+  --subset verified \
+  --split test \
+  --shuffle \
+  -o roulette-sonnet4-gpt5 \
+  --workers 20 \
+  -c swebench_roulette
+```
