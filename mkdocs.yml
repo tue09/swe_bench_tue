@@ -78,9 +78,6 @@ plugins:
    - glightbox
    - search
    - include-markdown
-   - mike:
-      canonical_version: latest
-      version_selector: true
    - mkdocstrings:
       default_handler: python
       handlers:
@@ -105,8 +102,6 @@ extra_css:
   - css/custom.css
   - css/mkdocstrings.css
 extra:
-  version:
-    provider: mike
   analytics:
     provider: google
     property: G-T5P2NYGJYR
