@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datasets import Dataset, load_dataset, load_from_disk
 from dotenv import load_dotenv
 from pathlib import Path
-from tqdm import tqdm
 from typing import cast
 from swebench.harness.constants import (
     SWEbenchInstance,
@@ -39,7 +38,7 @@ class EvaluationError(Exception):
 
 def get_predictions_from_file(predictions_path: str, dataset_name: str, split: str):
     if predictions_path == "gold":
-        print("Using gold predictions - ignoring predictions_path")
+        print("Using gold predictions")
         dataset = load_swebench_dataset(dataset_name, split)
         return [
             {
@@ -77,47 +76,55 @@ def get_predictions_from_file(predictions_path: str, dataset_name: str, split: s
 
 
 def run_threadpool(func, payloads, max_workers):
+    """
+    Run a function with a list of payloads using ThreadPoolExecutor.
+
+    Args:
+        func: Function to run for each payload
+        payloads: List of payloads to process
+        max_workers: Maximum number of worker threads
+
+    Returns:
+        tuple: (succeeded, failed) lists of payloads
+    """
     if max_workers <= 0:
         return run_sequential(func, payloads)
     succeeded, failed = [], []
-    with tqdm(total=len(payloads), smoothing=0) as pbar:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Create a future for running each instance
-            futures = {executor.submit(func, *payload): payload for payload in payloads}
-            # Wait for each future to complete
-            for future in as_completed(futures):
-                try:
-                    # Check if instance ran successfully
-                    future.result()
-                    succeeded.append(futures[future])
-                except Exception as e:
-                    print(f"{type(e)}: {e}")
-                    traceback.print_exc()
-                    failed.append(futures[future])
-                # Update progress bar
-                pbar.update(1)
-                pbar.set_description(
-                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
-                )
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Create a future for running each instance
+        futures = {executor.submit(func, *payload): payload for payload in payloads}
+        # Wait for each future to complete
+        for future in as_completed(futures):
+            try:
+                # Check if instance ran successfully
+                future.result()
+                succeeded.append(futures[future])
+            except Exception as e:
+                print(f"{type(e)}: {e}")
+                traceback.print_exc()
+                failed.append(futures[future])
     return succeeded, failed
 
 
-def run_sequential(func, args_list):
+def run_sequential(func, payloads):
     """
-    Run a function with a list of arguments sequentially
+    Run a function with a list of payloads sequentially.
+
+    Args:
+        func: Function to run for each payload
+        payloads: List of payloads to process
+
+    Returns:
+        tuple: (succeeded, failed) lists of payloads
     """
     succeeded, failed = [], []
-    pbar = tqdm(total=len(args_list), smoothing=0)
-    for args in args_list:
+    for payload in payloads:
         try:
-            func(*args)
-            succeeded.append(args)
+            func(*payload)
+            succeeded.append(payload)
         except Exception:
             traceback.print_exc()
-            failed.append(args)
-        pbar.update(1)
-        pbar.set_description(f"{len(succeeded)} ran successfully, {len(failed)} failed")
-    pbar.close()
+            failed.append(payload)
     return succeeded, failed
 
 
