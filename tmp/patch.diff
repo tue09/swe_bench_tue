@@ -1,0 +1,310 @@
+diff --git a/HISTORY.rst b/HISTORY.rst
+index 26d5c65b..2e4a8075 100644
+--- a/HISTORY.rst
++++ b/HISTORY.rst
+@@ -3,6 +3,15 @@
+ Release History
+ ---------------
+ 
++2.4.1 (2014-09-09)
++++++++++++++++++++
++
++- Now has a "security" package extras set, ``$ pip install requests[security]``
++- Requests will now use Certifi if it is available.
++- Capture and re-raise urllib3 ProtocolError
++- Bugfix for responses that attempt to redirect to themselves forever (wtf?).
++
++
+ 2.4.0 (2014-08-29)
+ ++++++++++++++++++
+ 
+diff --git a/docs/api.rst b/docs/api.rst
+index 69f138a2..7c5dae2e 100644
+--- a/docs/api.rst
++++ b/docs/api.rst
+@@ -60,6 +60,8 @@ Exceptions
+ .. autoexception:: requests.exceptions.HTTPError
+ .. autoexception:: requests.exceptions.URLRequired
+ .. autoexception:: requests.exceptions.TooManyRedirects
++.. autoexception:: requests.exceptions.ConnectTimeout
++.. autoexception:: requests.exceptions.ReadTimeout
+ .. autoexception:: requests.exceptions.Timeout
+ 
+ 
+@@ -247,29 +249,11 @@ API Changes
+       requests.get("http://example.org", proxies=proxies)
+ 
+ 
+-Behavioral Changes
+-~~~~~~~~~~~~~~~~~~
++Behavioural Changes
++~~~~~~~~~~~~~~~~~~~~~~~
+ 
+ * Keys in the ``headers`` dictionary are now native strings on all Python
+   versions, i.e. bytestrings on Python 2 and unicode on Python 3. If the
+   keys are not native strings (unicode on Python2 or bytestrings on Python 3)
+   they will be converted to the native string type assuming UTF-8 encoding.
+ 
+-* Timeouts behave slightly differently. On streaming requests, the timeout
+-  only applies to the connection attempt. On regular requests, the timeout
+-  is applied to the connection process and on to all attempts to read data from
+-  the underlying socket. It does *not* apply to the total download time for the
+-  request.
+-
+-  ::
+-
+-      tarball_url = 'https://github.com/kennethreitz/requests/tarball/master'
+-
+-      # One second timeout for the connection attempt
+-      # Unlimited time to download the tarball
+-      r = requests.get(tarball_url, stream=True, timeout=1)
+-
+-      # One second timeout for the connection attempt
+-      # Another full second timeout to download the tarball
+-      r = requests.get(tarball_url, timeout=1)
+-
+diff --git a/docs/community/support.rst b/docs/community/support.rst
+index a187a332..7f8c332d 100644
+--- a/docs/community/support.rst
++++ b/docs/community/support.rst
+@@ -15,7 +15,7 @@ If your question is less than 140 characters, feel free to send a tweet to
+ File an Issue
+ -------------
+ 
+-If you notice some unexpected behavior in Requests, or want to see support
++If you notice some unexpected behaviour in Requests, or want to see support
+ for a new feature,
+ `file an issue on GitHub <https://github.com/kennethreitz/requests/issues>`_.
+ 
+diff --git a/docs/user/advanced.rst b/docs/user/advanced.rst
+index 0de6b1b1..d285c181 100644
+--- a/docs/user/advanced.rst
++++ b/docs/user/advanced.rst
+@@ -194,7 +194,7 @@ Body Content Workflow
+ ---------------------
+ 
+ By default, when you make a request, the body of the response is downloaded
+-immediately. You can override this behavior and defer downloading the response
++immediately. You can override this behaviour and defer downloading the response
+ body until you access the :class:`Response.content <requests.Response.content>`
+ attribute with the ``stream`` parameter::
+ 
+@@ -741,3 +741,21 @@ coffee.
+     r = requests.get('https://github.com', timeout=None)
+ 
+ .. _`connect()`: http://linux.die.net/man/2/connect
++
++CA Certificates
++---------------
++
++By default Requests bundles a set of root CAs that it trusts, sourced from the
++`Mozilla trust store`_. However, these are only updated once for each Requests
++version. This means that if you pin a Requests version your certificates can
++become extremely out of date.
++
++From Requests version 2.4.0 onwards, Requests will attempt to use certificates
++from `certifi`_ if it is present on the system. This allows for users to update
++their trusted certificates without having to change the code that runs on their
++system.
++
++For the sake of security we recommend upgrading certifi frequently!
++
++.. _certifi: http://certifi.io/
++.. _Mozilla trust store: https://hg.mozilla.org/mozilla-central/raw-file/tip/security/nss/lib/ckfw/builtins/certdata.txt
+diff --git a/docs/user/quickstart.rst b/docs/user/quickstart.rst
+index ff008347..1a4b2714 100644
+--- a/docs/user/quickstart.rst
++++ b/docs/user/quickstart.rst
+@@ -31,7 +31,7 @@ timeline ::
+ 
+     >>> r = requests.get('https://api.github.com/events')
+ 
+-Now, we have a :class:`Request <requests.Request>` object called ``r``. We can
++Now, we have a :class:`Response <requests.Response>` object called ``r``. We can
+ get all the information we need from this object.
+ 
+ Requests' simple API means that all forms of HTTP request are as obvious. For
+diff --git a/requests/__init__.py b/requests/__init__.py
+index 33a2b27a..7b823743 100644
+--- a/requests/__init__.py
++++ b/requests/__init__.py
+@@ -42,8 +42,8 @@ is at <http://python-requests.org>.
+ """
+ 
+ __title__ = 'requests'
+-__version__ = '2.4.0'
+-__build__ = 0x020400
++__version__ = '2.4.1'
++__build__ = 0x020401
+ __author__ = 'Kenneth Reitz'
+ __license__ = 'Apache 2.0'
+ __copyright__ = 'Copyright 2014 Kenneth Reitz'
+diff --git a/requests/adapters.py b/requests/adapters.py
+index 3c1e979f..d17d9e69 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -23,6 +23,7 @@ from .packages.urllib3.exceptions import ConnectTimeoutError
+ from .packages.urllib3.exceptions import HTTPError as _HTTPError
+ from .packages.urllib3.exceptions import MaxRetryError
+ from .packages.urllib3.exceptions import ProxyError as _ProxyError
++from .packages.urllib3.exceptions import ProtocolError
+ from .packages.urllib3.exceptions import ReadTimeoutError
+ from .packages.urllib3.exceptions import SSLError as _SSLError
+ from .cookies import extract_cookies_to_jar
+@@ -316,8 +317,10 @@ class HTTPAdapter(BaseAdapter):
+ 
+         :param request: The :class:`PreparedRequest <PreparedRequest>` being sent.
+         :param stream: (optional) Whether to stream the request content.
+-        :param timeout: (optional) The timeout on the request.
+-        :type timeout: float or tuple (connect timeout, read timeout), eg (3.1, 20)
++        :param timeout: (optional) How long to wait for the server to send
++            data before giving up, as a float, or a (`connect timeout, read
++            timeout <user/advanced.html#timeouts>`_) tuple.
++        :type timeout: float or tuple
+         :param verify: (optional) Whether to verify SSL certificates.
+         :param cert: (optional) Any user-provided SSL certificate to be trusted.
+         :param proxies: (optional) The proxies dictionary to apply to the request.
+@@ -400,8 +403,8 @@ class HTTPAdapter(BaseAdapter):
+                     # All is well, return the connection to the pool.
+                     conn._put_conn(low_conn)
+ 
+-        except socket.error as sockerr:
+-            raise ConnectionError(sockerr, request=request)
++        except (ProtocolError, socket.error) as err:
++            raise ConnectionError(err, request=request)
+ 
+         except MaxRetryError as e:
+             if isinstance(e.reason, ConnectTimeoutError):
+diff --git a/requests/api.py b/requests/api.py
+index 01d853d5..57a91d55 100644
+--- a/requests/api.py
++++ b/requests/api.py
+@@ -24,10 +24,14 @@ def request(method, url, **kwargs):
+     :param data: (optional) Dictionary, bytes, or file-like object to send in the body of the :class:`Request`.
+     :param headers: (optional) Dictionary of HTTP Headers to send with the :class:`Request`.
+     :param cookies: (optional) Dict or CookieJar object to send with the :class:`Request`.
+-    :param files: (optional) Dictionary of 'name': file-like-objects (or {'name': ('filename', fileobj)}) for multipart encoding upload.
++    :param files: (optional) Dictionary of ``'name': file-like-objects`` (or ``{'name': ('filename', fileobj)}``) for multipart encoding upload.
+     :param auth: (optional) Auth tuple to enable Basic/Digest/Custom HTTP Auth.
+-    :param timeout: (optional) Float describing the timeout of the request in seconds.
++    :param timeout: (optional) How long to wait for the server to send data
++        before giving up, as a float, or a (`connect timeout, read timeout
++        <user/advanced.html#timeouts>`_) tuple.
++    :type timeout: float or tuple
+     :param allow_redirects: (optional) Boolean. Set to True if POST/PUT/DELETE redirect following is allowed.
++    :type allow_redirects: bool
+     :param proxies: (optional) Dictionary mapping protocol to the URL of the proxy.
+     :param verify: (optional) if ``True``, the SSL cert will be verified. A CA_BUNDLE path can also be provided.
+     :param stream: (optional) if ``False``, the response content will be immediately downloaded.
+diff --git a/requests/exceptions.py b/requests/exceptions.py
+index 6dbd98a9..d8f05f08 100644
+--- a/requests/exceptions.py
++++ b/requests/exceptions.py
+@@ -46,15 +46,16 @@ class SSLError(ConnectionError):
+ class Timeout(RequestException):
+     """The request timed out.
+ 
+-    Catching this error will catch both :exc:`ConnectTimeout` and
+-    :exc:`ReadTimeout` errors.
++    Catching this error will catch both
++    :exc:`~requests.exceptions.ConnectTimeout` and
++    :exc:`~requests.exceptions.ReadTimeout` errors.
+     """
+ 
+ 
+ class ConnectTimeout(ConnectionError, Timeout):
+-    """The request timed out while trying to connect to the server.
++    """The request timed out while trying to connect to the remote server.
+ 
+-    Requests that produce this error are safe to retry
++    Requests that produced this error are safe to retry.
+     """
+ 
+ 
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 508b0ef2..023edfbd 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -134,8 +134,8 @@ class SessionRedirectMixin(object):
+                 url = requote_uri(url)
+ 
+             prepared_request.url = to_native_string(url)
+-            # cache the url
+-            if resp.is_permanent_redirect:
++            # Cache the url, unless it redirects to itself.
++            if resp.is_permanent_redirect and req.url != prepared_request.url:
+                 self.redirect_cache[req.url] = prepared_request.url
+ 
+             # http://tools.ietf.org/html/rfc7231#section-6.4.4
+@@ -400,13 +400,16 @@ class Session(SessionRedirectMixin):
+             :class:`Request`.
+         :param cookies: (optional) Dict or CookieJar object to send with the
+             :class:`Request`.
+-        :param files: (optional) Dictionary of 'filename': file-like-objects
++        :param files: (optional) Dictionary of ``'filename': file-like-objects``
+             for multipart encoding upload.
+         :param auth: (optional) Auth tuple or callable to enable
+             Basic/Digest/Custom HTTP Auth.
+-        :param timeout: (optional) Float describing the timeout of the
+-            request in seconds.
+-        :param allow_redirects: (optional) Boolean. Set to True by default.
++        :param timeout: (optional) How long to wait for the server to send
++            data before giving up, as a float, or a (`connect timeout, read
++            timeout <user/advanced.html#timeouts>`_) tuple.
++        :type timeout: float or tuple
++        :param allow_redirects: (optional) Set to True by default.
++        :type allow_redirects: bool
+         :param proxies: (optional) Dictionary mapping protocol to the URL of
+             the proxy.
+         :param stream: (optional) whether to immediately download the response
+diff --git a/requests/utils.py b/requests/utils.py
+index 2c6bb090..539a68a0 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -555,7 +555,7 @@ def default_headers():
+         'User-Agent': default_user_agent(),
+         'Accept-Encoding': ', '.join(('gzip', 'deflate')),
+         'Accept': '*/*',
+-        'Connection': 'keep-alive'
++        'Connection': 'keep-alive',
+     })
+ 
+ 
+diff --git a/setup.py b/setup.py
+index 9540a47c..813fc879 100755
+--- a/setup.py
++++ b/setup.py
+@@ -5,6 +5,8 @@ import sys
+ 
+ import requests
+ 
++from codecs import open
++
+ try:
+     from setuptools import setup
+ except ImportError:
+@@ -25,11 +27,11 @@ packages = [
+     'requests.packages.urllib3.packages.ssl_match_hostname',
+ ]
+ 
+-requires = ['certifi']
++requires = []
+ 
+-with open('README.rst') as f:
++with open('README.rst', 'r', 'utf-8') as f:
+     readme = f.read()
+-with open('HISTORY.rst') as f:
++with open('HISTORY.rst', 'r', 'utf-8') as f:
+     history = f.read()
+ 
+ setup(
+@@ -60,4 +62,7 @@ setup(
+         'Programming Language :: Python :: 3.4'
+ 
+     ),
++    extras_require={
++        'security': ['pyOpenSSL', 'ndg-httpsclient', 'pyasn1'],
++    },
+ )
+
+EOF

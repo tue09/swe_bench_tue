@@ -62,6 +62,8 @@ from swebench.harness.utils import (
 )
 
 GIT_APPLY_CMDS = [
+    # "git reset --hard 7af856a1098406aea84bcadfd0f3de6b7901526c",
+    # "git rev-parse HEAD"
     "git apply --verbose",
     "git apply --verbose --reject",
     "patch --batch --fuzz=5 -p1 -i",
@@ -77,6 +79,7 @@ def run_instance(
     run_id: str,
     timeout: int | None = None,
     rewrite_reports: bool = False,
+    base_commit: str = "...",
 ) -> dict:
     """
     Run a single instance with the given prediction.
@@ -165,18 +168,33 @@ def run_instance(
 
         # Attempt to apply patch to container (TODO: FIX THIS)
         applied_patch = False
+        if base_commit != "...":
+            val = container.exec_run(
+                    f"git reset --hard {base_commit}",
+                    workdir=DOCKER_WORKDIR,
+                    user=DOCKER_USER,
+                )
+        # print(f'[val] = {val}')
+        val = container.exec_run(
+                "git rev-parse HEAD",
+                workdir=DOCKER_WORKDIR,
+                user=DOCKER_USER,
+            )
+        # print(f'[val] = {val}')
         for git_apply_cmd in GIT_APPLY_CMDS:
             val = container.exec_run(
                 f"{git_apply_cmd} {DOCKER_PATCH}",
                 workdir=DOCKER_WORKDIR,
                 user=DOCKER_USER,
             )
+            # print(f'[val] = {val}')
             if val.exit_code == 0:
                 logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode(UTF8)}")
                 applied_patch = True
                 break
             else:
                 logger.info(f"Failed to apply patch to container: {git_apply_cmd}")
+        
         if not applied_patch:
             logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode(UTF8)}")
             raise EvaluationError(
@@ -285,6 +303,7 @@ def run_instances(
     namespace: str | None = "swebench",
     instance_image_tag: str = "latest",
     rewrite_reports: bool = False,
+    setup_base_commit: bool = False,
 ):
     """
     Run all instances for the given predictions in parallel.
@@ -324,7 +343,9 @@ def run_instances(
 
     # run instances in parallel
     payloads = []
-    for test_spec in test_specs:
+    # print(f'[predictions] type = {type(predictions)} with value = {predictions}')
+    for id, test_spec in enumerate(test_specs):
+        base_commit = instances[id]['base_commit']
         payloads.append(
             (
                 test_spec,
@@ -340,6 +361,7 @@ def run_instances(
                 run_id,
                 timeout,
                 rewrite_reports,
+                base_commit,
             )
         )
 

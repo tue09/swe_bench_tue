@@ -195,7 +195,7 @@ def make_test_spec(
 
     def _from_json_or_obj(key: str) -> Any:
         """If key points to string, load with json"""
-        if key not in instance:
+        if key not in instance or instance[key] == "...":
             # If P2P, F2P keys not found, it's a validation instance
             return []
         if isinstance(instance[key], str):

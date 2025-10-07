@@ -10,6 +10,10 @@ from swebench.harness.constants.php import *
 from swebench.harness.constants.python import *
 from swebench.harness.constants.ruby import *
 from swebench.harness.constants.rust import *
+from swebench.harness.constants.python_swegym import MAP_REPO_VERSION_TO_SPECS as MAP_REPO_VERSION_TO_SPECS_SWEGYM
+from swebench.harness.constants.python_swegym import MAP_REPO_TO_ENV_YML_PATHS as MAP_REPO_TO_ENV_YML_PATHS_SWEGYM
+from swebench.harness.constants.python_swegym import MAP_REPO_TO_REQS_PATHS as MAP_REPO_TO_REQS_PATHS_SWEGYM
+from swebench.harness.constants.python import MAP_REPO_TO_ENV_YML_PATHS as MAP_REPO_TO_ENV_YML_PATHS_PYTHON
 
 
 # Constants - Evaluation Log Directories
@@ -31,6 +35,8 @@ class SWEbenchInstance(TypedDict):
     hints_text: str
     created_at: str
     version: str
+    test_cmds: list[str]
+    log_parser: str
     FAIL_TO_PASS: str
     PASS_TO_PASS: str
     environment_setup_commit: str
@@ -74,6 +80,7 @@ DOCKER_WORKDIR = "/testbed"
 LOG_REPORT = "report.json"
 LOG_INSTANCE = "run_instance.log"
 LOG_TEST_OUTPUT = "test_output.txt"
+LOG_PRE_TEST_OUTPUT = "pre_test_output.txt"
 UTF8 = "utf-8"
 
 # Constants - Logging
@@ -142,6 +149,7 @@ MAP_REPO_VERSION_TO_SPECS = {
     **MAP_REPO_VERSION_TO_SPECS_PY,
     **MAP_REPO_VERSION_TO_SPECS_RUBY,
     **MAP_REPO_VERSION_TO_SPECS_RUST,
+    **MAP_REPO_VERSION_TO_SPECS_SWEGYM,
 }
 
 MAP_REPO_TO_INSTALL = {
@@ -164,6 +172,12 @@ MAP_REPO_TO_EXT = {
     **{k: "py" for k in MAP_REPO_VERSION_TO_SPECS_PY.keys()},
     **{k: "rb" for k in MAP_REPO_VERSION_TO_SPECS_RUBY.keys()},
     **{k: "rs" for k in MAP_REPO_VERSION_TO_SPECS_RUST.keys()},
+    **{k: "py" for k in MAP_REPO_VERSION_TO_SPECS_SWEGYM.keys()},
+}
+
+MAP_REPO_TO_ENV_YML_PATHS = {
+    **MAP_REPO_TO_ENV_YML_PATHS_PYTHON,
+    **MAP_REPO_TO_ENV_YML_PATHS_SWEGYM,
 }
 
 LATEST = "latest"
